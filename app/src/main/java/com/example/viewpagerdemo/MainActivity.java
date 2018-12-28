@@ -1,5 +1,6 @@
 package com.example.viewpagerdemo;
 
+import android.net.Uri;
 import android.support.annotation.NonNull;
 import android.support.design.widget.BottomNavigationView;
 import android.support.v4.app.Fragment;
@@ -15,7 +16,10 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity
+        implements ContactFragment.OnFragmentInteractionListener,
+                    GalleryFragment.OnFragmentInteractionListener,
+                 CardFragment.OnFragmentInteractionListener{
 
     private SectionsPagerAdapter mSectionsPagerAdapter;
     private BottomNavigationView mNavigation;
@@ -30,13 +34,13 @@ public class MainActivity extends AppCompatActivity {
             switch (position) {
                 case 0:
                     mNavigation.setSelectedItemId(R.id.navigation_contacts);
-                    break;
+                    return;
                 case 1:
                     mNavigation.setSelectedItemId(R.id.navigation_gallery);
-                    break;
+                    return;
                 case 2:
                     mNavigation.setSelectedItemId(R.id.navigation_card);
-                    break;
+                    return;
             }
             Log.i("Error", "***** onPageSelected *****");
         }
@@ -78,6 +82,11 @@ public class MainActivity extends AppCompatActivity {
         mNavigation.setOnNavigationItemSelectedListener(mOnNavigationItemSelectedListener);
     }
 
+    @Override
+    public void onFragmentInteraction(Uri uri) {
+
+    }
+
     public static class PlaceholderFragment extends Fragment {
         private static final String SECTION_NUMBER = "section_number";
 
@@ -107,6 +116,14 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public Fragment getItem(int position) {
+            switch (position) {
+                case 0:
+                    return ContactFragment.newInstance();
+                case 1:
+                    return GalleryFragment.newInstance();
+                case 2:
+                    return CardFragment.newInstance();
+            }
             return PlaceholderFragment.newInstance(position + 1);
         }
 
