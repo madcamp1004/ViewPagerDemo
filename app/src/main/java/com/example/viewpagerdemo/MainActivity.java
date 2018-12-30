@@ -1,8 +1,19 @@
 package com.example.viewpagerdemo;
 
+import android.Manifest;
+import android.app.Service;
+import android.content.ContentResolver;
+import android.content.pm.PackageManager;
+import android.content.res.Configuration;
+import android.database.Cursor;
 import android.net.Uri;
+import android.os.Handler;
+import android.os.Looper;
+import android.provider.ContactsContract;
 import android.support.annotation.NonNull;
+import android.support.constraint.ConstraintLayout;
 import android.support.design.widget.BottomNavigationView;
+import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentPagerAdapter;
@@ -14,7 +25,13 @@ import android.view.LayoutInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.TextView;
+import android.widget.Toast;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 
 public class MainActivity extends AppCompatActivity
         implements ContactFragment.OnFragmentInteractionListener,
@@ -22,8 +39,13 @@ public class MainActivity extends AppCompatActivity
                  CardFragment.OnFragmentInteractionListener{
 
     private SectionsPagerAdapter mSectionsPagerAdapter;
-    private BottomNavigationView mNavigation;
-    private ViewPager mViewPager;
+    public static BottomNavigationView mNavigation;
+    public static ViewPager mViewPager;
+
+
+
+    public static ArrayList<String> items;
+    public static ArrayList<Map<String, String>> dataList;
 
     private ViewPager.OnPageChangeListener mOnPageChangeListener
             = new ViewPager.SimpleOnPageChangeListener() {
@@ -80,11 +102,17 @@ public class MainActivity extends AppCompatActivity
         mViewPager.addOnPageChangeListener(mOnPageChangeListener);
         mNavigation = (BottomNavigationView) findViewById(R.id.navigation);
         mNavigation.setOnNavigationItemSelectedListener(mOnNavigationItemSelectedListener);
+
+        items = new ArrayList<String>();
+        dataList = new ArrayList<Map<String, String>>();
+
+        if(Permissioncheck()) {
+            loadContacts();
+        }
     }
 
     @Override
     public void onFragmentInteraction(Uri uri) {
-
     }
 
     public static class PlaceholderFragment extends Fragment {
@@ -135,4 +163,80 @@ public class MainActivity extends AppCompatActivity
 
     }
 
+
+    @Override
+    public int checkSelfPermission(String permission) {
+        return super.checkSelfPermission(permission);
+    }
+
+    public boolean Permissioncheck(){
+        if(checkSelfPermission(Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED){
+            return true;
+        }
+        else{
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.READ_CONTACTS},1);
+            if(checkSelfPermission(Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED){
+                return true;
+            }
+            else{
+                return false;
+            }
+        }
+    }
+
+    private void loadContacts() {
+        ContentResolver cr = getContentResolver();
+        Cursor cur = cr.query(ContactsContract.Contacts.CONTENT_URI, null, null, null, null);
+        //check there exists contact
+        //cur : includes every contact
+        if (cur.getCount() > 0) {
+            while (cur.moveToNext()) {
+                String id = cur.getString(cur.getColumnIndex(ContactsContract.Contacts._ID));
+                String name = cur.getString(cur.getColumnIndex(ContactsContract.Contacts.DISPLAY_NAME));
+                //check whether there exists phone number
+                if (Integer.parseInt(cur.getString(cur.getColumnIndex(ContactsContract.Contacts.HAS_PHONE_NUMBER))) > 0) {
+                    Cursor pCur = cr.query(ContactsContract.CommonDataKinds.Phone.CONTENT_URI, null, ContactsContract.CommonDataKinds.Phone.CONTACT_ID + "=?", new String[]{id}, null);
+                    //if there are multiple contacts per id --> Make multiple list items using the name
+                    while (pCur.moveToNext()) {
+                        String phoneNo = addHyphenToPhone(pCur.getString(pCur.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)));
+
+                        HashMap tmpMap = new HashMap<String, String>();
+                        tmpMap.put("name", name);
+                        tmpMap.put("phone", phoneNo);
+                        tmpMap.put("address", "");
+
+                        dataList.add(tmpMap);
+
+                        String listItem = name + ": " + phoneNo;
+
+                        items.add(listItem);
+                        // ContactFragment.adapter.notifyDataSetChanged();
+                    }
+                    pCur.close();
+                }
+            }
+        }
+    }
+
+    public String addHyphenToPhone(String phoneNum) {
+        return phoneNum.replaceFirst("(\\d{3})(\\d{4})(\\d+)", "($1) $2-$3");
+    }
+
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+
+        // Checks whether a hardware keyboard is available
+        if (newConfig.hardKeyboardHidden == Configuration.HARDKEYBOARDHIDDEN_NO) {
+            Toast.makeText(this, "keyboard visible", Toast.LENGTH_SHORT).show();
+        } else if (newConfig.hardKeyboardHidden == Configuration.HARDKEYBOARDHIDDEN_YES) {
+            Toast.makeText(this, "keyboard hidden", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    @Override
+    public void onDestroy()
+    {
+        super.onDestroy();
+    }
 }
