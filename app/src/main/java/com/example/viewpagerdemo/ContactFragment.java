@@ -184,13 +184,11 @@ public class ContactFragment extends Fragment {
 
         Log.i("***COUNT***", "" + MainActivity.dataList.size());
 
-        if(count > 0){
-            idx = listview.getCheckedItemPosition();
-            if(idx > -1 && idx < count){
-                // selectedString = items.get(idx);
-                Toast.makeText(getContext(), nameText.getText() + " " + phoneText.getText() + " " + addressText.getText() ,Toast.LENGTH_SHORT).show();
-                MainActivity.mViewPager.setCurrentItem(1, true);
-            }
+        if(((nameText.getText().length() > 0) && (phoneText.getText().length() > 0)) && (addressText.getText().length() > 0)){
+            Toast.makeText(getContext(), nameText.getText() + " " + phoneText.getText() + " " + addressText.getText() ,Toast.LENGTH_SHORT).show();
+            MainActivity.mViewPager.setCurrentItem(1, true);
+        } else {
+            Toast.makeText(getContext(), "모든 필드에 정보를 입력하세요" ,Toast.LENGTH_SHORT).show();
         }
     }
 }

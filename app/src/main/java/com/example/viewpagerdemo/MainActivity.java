@@ -3,13 +3,19 @@ package com.example.viewpagerdemo;
 import android.Manifest;
 import android.app.Service;
 import android.content.ContentResolver;
+import android.content.DialogInterface;
+import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.database.Cursor;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.ContactsContract;
+import android.provider.MediaStore;
 import android.support.annotation.NonNull;
 import android.support.constraint.ConstraintLayout;
 import android.support.design.widget.BottomNavigationView;
@@ -18,8 +24,10 @@ import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentPagerAdapter;
 import android.support.v4.view.ViewPager;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.MenuItem;
@@ -29,8 +37,17 @@ import android.view.inputmethod.InputMethodManager;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.karumi.dexter.Dexter;
+import com.karumi.dexter.MultiplePermissionsReport;
+import com.karumi.dexter.PermissionToken;
+import com.karumi.dexter.listener.PermissionRequest;
+import com.karumi.dexter.listener.multi.MultiplePermissionsListener;
+
+import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 
 public class MainActivity extends AppCompatActivity
@@ -38,14 +55,51 @@ public class MainActivity extends AppCompatActivity
                     GalleryFragment.OnFragmentInteractionListener,
                  CardFragment.OnFragmentInteractionListener{
 
+    // FOR CAMERA
+
+    // Activity request codes
+    private static final int CAMERA_CAPTURE_IMAGE_REQUEST_CODE = 100;
+    private static final int CAMERA_CAPTURE_VIDEO_REQUEST_CODE = 200;
+
+    // key to store image path in savedInstance state
+    public static final String KEY_IMAGE_STORAGE_PATH = "image_path";
+    // Bitmap sampling size
+    public static final int BITMAP_SAMPLE_SIZE = 1;
+
+    // Gallery directory name to store the images or videos
+    public static final String GALLERY_DIRECTORY_NAME = "Hello Camera";
+
+    // Image and Video file extensions
+    public static final String IMAGE_EXTENSION = "jpg";
+
+    private static String imageStoragePath;
+
+    //////////////////////////
+
+
     private SectionsPagerAdapter mSectionsPagerAdapter;
     public static BottomNavigationView mNavigation;
     public static ViewPager mViewPager;
 
 
+    SharedPreferences sharedPreferences;
+    HashSet<String> strImgSet;
+
 
     public static ArrayList<String> items;
     public static ArrayList<Map<String, String>> dataList;
+
+    public void addNewBitmap(Bitmap bitmap) {
+        ImageAdapter.imageList.add(0, bitmap);
+        String serializedBitmap = ObjectSerializer.BitMapToString(bitmap);
+        strImgSet.add(serializedBitmap);
+
+        Log.i("strimgset", String.valueOf(strImgSet.size()));
+
+        sharedPreferences.edit().clear().putStringSet("images", strImgSet).apply();
+
+        Log.i("strimgset","ADDED TO SHAREDPREF");
+    }
 
     private ViewPager.OnPageChangeListener mOnPageChangeListener
             = new ViewPager.SimpleOnPageChangeListener() {
@@ -94,6 +148,9 @@ public class MainActivity extends AppCompatActivity
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        items = new ArrayList<String>();
+        dataList = new ArrayList<Map<String, String>>();
+
         mSectionsPagerAdapter = new SectionsPagerAdapter(getSupportFragmentManager());
 
         mViewPager = (ViewPager) findViewById(R.id.viewPager);
@@ -103,15 +160,223 @@ public class MainActivity extends AppCompatActivity
         mNavigation = (BottomNavigationView) findViewById(R.id.navigation);
         mNavigation.setOnNavigationItemSelectedListener(mOnNavigationItemSelectedListener);
 
-        items = new ArrayList<String>();
-        dataList = new ArrayList<Map<String, String>>();
-
-        if(Permissioncheck()) {
+        if (Permissioncheck()) {
             loadContacts();
+        }
+
+        if (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, 1);
+        } else {
+            Log.i("Error", "Permission does not granted!");
+        }
+
+        //checking availability of the camera
+        if (!CameraUtils.isDeviceSupportCamera(getApplicationContext())) {
+            Toast.makeText(getApplicationContext(), "Sorry! Your device doesn't support camera", Toast.LENGTH_LONG).show();
+            finish();
+        }
+
+
+
+        // sharedPreferences = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
+        sharedPreferences = getApplicationContext().getSharedPreferences("gallery_images", MODE_PRIVATE);
+
+        Log.i("SharedPref", sharedPreferences.toString());
+
+        // strImgSet = new HashSet<String>(sharedPreferences.getStringSet("images", null));
+        // HashSet<String> tmpSet = new HashSet<String>(sharedPreferences.getStringSet("images", null));
+        // strImgSet = tmpSet;
+        strImgSet = (HashSet<String>)sharedPreferences.getStringSet("images", null);
+
+
+
+        if (strImgSet == null) {
+            strImgSet = new HashSet<String>();
+            // sharedPreference 에서 불러올 이미지가 없다 (앱을 처음 실행)
+            for (int imgId : ImageAdapter.mThumbIds) {
+                Bitmap tmp = BitmapFactory.decodeResource(getResources(), imgId);
+                addNewBitmap(tmp);
+            }
+        } else {
+            // sharedPreference 에서 불러올 이미지가 있다 (앱을 이미 실행한적이 있다)
+            if (ImageAdapter.imageList.size() == 0) {
+                for (String strImg : strImgSet) {
+                    ImageAdapter.imageList.add(0, ObjectSerializer.StringToBitMap(strImg));
+                }
+            }
         }
     }
 
+    public void getPhoto() {
+        Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+        startActivityForResult(intent, 1);
+    }
+
+    /**
+     * Restoring store image path from saved instance state
+     */
+    public void restoreFromBundle(Bundle savedInstanceState) {
+        if (savedInstanceState != null) {
+            if (savedInstanceState.containsKey(KEY_IMAGE_STORAGE_PATH)) {
+                imageStoragePath = savedInstanceState.getString(KEY_IMAGE_STORAGE_PATH);
+                if (!TextUtils.isEmpty(imageStoragePath)) {
+                    if (imageStoragePath.substring(imageStoragePath.lastIndexOf(".")).equals("." + IMAGE_EXTENSION)) {
+                        previewCapturedImage();
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * requesting permissions using dexter library
+     */
+    public void requestCameraPermission() {
+        Dexter.withActivity(this)
+                .withPermissions(Manifest.permission.CAMERA,
+                        Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                        Manifest.permission.RECORD_AUDIO)
+                .withListener(new MultiplePermissionsListener() {
+                    @Override
+                    public void onPermissionsChecked(MultiplePermissionsReport report) {
+                        if (report.areAllPermissionsGranted()) {
+                            // capture picture
+                            captureImage();
+                        } else if (report.isAnyPermissionPermanentlyDenied()) {
+                            showPermissionsAlert();
+                        }
+                    }
+
+                    @Override
+                    public void onPermissionRationaleShouldBeShown(List<PermissionRequest> permissions, PermissionToken token) {
+                        token.continuePermissionRequest();
+                    }
+                }).check();
+    }
+
+    /**
+     * Capturing Camera Image will launch camera app requested image capture
+     */
+    public void captureImage() {
+        Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+
+        File file = CameraUtils.getOutputMediaFile();
+        if (file != null) {
+            imageStoragePath = file.getAbsolutePath();
+        }
+
+        Uri fileUri = CameraUtils.getOutputMediaFileUri(getApplicationContext(), file);
+
+        intent.putExtra(MediaStore.EXTRA_OUTPUT, fileUri);
+
+        // start the image capture Intent
+        startActivityForResult(intent, CAMERA_CAPTURE_IMAGE_REQUEST_CODE);
+    }
+
+    /**
+     * Saving stored image path to saved instance state
+     */
     @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+
+        // save file url in bundle as it will be null on screen orientation
+        // changes
+        outState.putString(KEY_IMAGE_STORAGE_PATH, imageStoragePath);
+    }
+    /**
+     * Restoring image path from saved instance state
+     */
+    @Override
+    protected void onRestoreInstanceState(Bundle savedInstanceState) {
+        super.onRestoreInstanceState(savedInstanceState);
+
+        // get the file url
+        imageStoragePath = savedInstanceState.getString(KEY_IMAGE_STORAGE_PATH);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == 1 && resultCode == RESULT_OK && data != null) {
+            try {
+                Uri selectedImage = data.getData();
+
+                Bitmap bitmap = MediaStore.Images.Media.getBitmap(this.getContentResolver(), selectedImage);
+                addNewBitmap(bitmap);
+
+//                ImageView imageView = findViewById(R.id.myImage);
+//                imageView.setImageBitmap(bitmap);
+
+//                ByteArrayOutputStream stream = new ByteArrayOutputStream();
+//                bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream);
+//                byte[] byteArray = stream.toByteArray();
+
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+        else if (requestCode == CAMERA_CAPTURE_IMAGE_REQUEST_CODE && resultCode == RESULT_OK) {
+            // Refreshing the gallery
+            CameraUtils.refreshGallery(getApplicationContext(), imageStoragePath);
+
+            // successfully captured the image
+            // display it in image view
+            previewCapturedImage();
+
+        } else if (resultCode == RESULT_CANCELED) {
+            // user cancelled Image capture
+            Toast.makeText(getApplicationContext(),
+                    "User cancelled image capture", Toast.LENGTH_SHORT)
+                    .show();
+        } else {
+            // failed to capture image
+            Toast.makeText(getApplicationContext(),
+                    "ReqCode: " + requestCode + "ResCode: " + resultCode, Toast.LENGTH_SHORT)
+                    .show();
+        }
+
+        GalleryFragment.imgAdapter.notifyDataSetChanged();
+        GalleryFragment.gridView.invalidateViews();
+        GalleryFragment.gridView.setAdapter(GalleryFragment.imgAdapter);
+    }
+
+    /**
+     * Display image from gallery
+     */
+    private void previewCapturedImage() {
+        try {
+            //imgPreview.setVisibility(View.VISIBLE);
+            Bitmap bitmap = CameraUtils.optimizeBitmap(BITMAP_SAMPLE_SIZE, imageStoragePath);
+            addNewBitmap(bitmap);
+
+        } catch (NullPointerException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Alert dialog to navigate to app settings
+     * to enable necessary permissions
+     */
+    private void showPermissionsAlert() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Permissions required!")
+                .setMessage("Camera needs few permissions to work properly. Grant them in settings.")
+                .setPositiveButton("GOTO SETTINGS", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int which) {
+                        CameraUtils.openSettings(MainActivity.this);
+                    }
+                })
+                .setNegativeButton("CANCEL", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int which) {
+
+                    }
+                }).show();
+    }
+
+        @Override
     public void onFragmentInteraction(Uri uri) {
     }
 
@@ -159,8 +424,6 @@ public class MainActivity extends AppCompatActivity
         public int getCount() {
             return 3;
         }
-
-
     }
 
 
@@ -205,7 +468,11 @@ public class MainActivity extends AppCompatActivity
                         tmpMap.put("phone", phoneNo);
                         tmpMap.put("address", "");
 
-                        dataList.add(tmpMap);
+                        if(dataList != null) {
+                            dataList.add(tmpMap);
+                        } else {
+                            Log.i("NullException","dataList null!");
+                        }
 
                         String listItem = name + ": " + phoneNo;
 
