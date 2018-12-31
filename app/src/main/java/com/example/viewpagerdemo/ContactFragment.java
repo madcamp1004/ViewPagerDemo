@@ -1,12 +1,15 @@
 package com.example.viewpagerdemo;
 
+import android.Manifest;
 import android.app.Service;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.support.constraint.ConstraintLayout;
+import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.Fragment;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -23,6 +26,9 @@ import android.widget.Toast;
 
 public class ContactFragment extends Fragment {
 
+    private static final int CONTACT_PERMISSION_REQCODE = 123;
+    private static final int STORAGE_PERMISSION_REQCODE = 456;
+
     protected View fragView;
 
     EditText nameText;
@@ -35,7 +41,7 @@ public class ContactFragment extends Fragment {
 
     public static ArrayAdapter adapter;
 
-    ListView listview;
+    public static ListView listview;
 
     SoftKeyboard softKeyboard;
     ConstraintLayout constraintLayout;
@@ -67,10 +73,12 @@ public class ContactFragment extends Fragment {
         super.onCreateView(inflater, container, savedInstanceState);
         View view = inflater.inflate(R.layout.fragment_contact, container, false);
         this.fragView = view;
-
         listview = (ListView) fragView.findViewById(R.id.listview);
         adapter = new ArrayAdapter(getContext(), android.R.layout.simple_list_item_single_choice, MainActivity.items);
         listview.setAdapter(adapter);
+
+        CheckPermissionLoadContact();
+
 
         nameText = (EditText) fragView.findViewById(R.id.nameText);
         phoneText = (EditText) fragView.findViewById(R.id.phoneText);
@@ -138,6 +146,27 @@ public class ContactFragment extends Fragment {
             }
         });
         return view;
+    }
+
+
+    public void CheckPermissionLoadContact(){
+        if(getActivity().checkSelfPermission(Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED) {
+            Log.i("***PERMISSION", "Got ContactPermission");
+            ((MainActivity) getActivity()).loadContacts();
+        }
+        else{
+            Log.i("***PERMISSION","Try to get ContactPermission");
+            ActivityCompat.requestPermissions(getActivity(), new String[]{Manifest.permission.READ_CONTACTS},CONTACT_PERMISSION_REQCODE);
+        }
+    }
+
+    public void GetStoragePermission(){
+        if (getActivity().checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
+            Log.i("***PERMISSION","Got StoragePermission");
+        } else {
+            Log.i("***PERMISSION","Try to get ContactPermission");
+            ActivityCompat.requestPermissions(getActivity(), new String[]{Manifest.permission.READ_EXTERNAL_STORAGE},STORAGE_PERMISSION_REQCODE);
+        }
     }
 
     // TODO: Rename method, update argument and hook method into UI event

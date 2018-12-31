@@ -84,7 +84,7 @@ public class GalleryFragment extends Fragment {
         fab2.setOnClickListener(new View.OnClickListener(){
             @Override
             public void onClick(View view){
-                Toast.makeText(fragContext,"Camera fab clicked.",Toast.LENGTH_SHORT).show();
+                // Toast.makeText(fragContext,"Camera fab clicked.",Toast.LENGTH_SHORT).show();
                 if(CameraUtils.checkPermissions(getActivity())){
                     ((MainActivity)getActivity()).captureImage();
                 } else{
@@ -97,7 +97,7 @@ public class GalleryFragment extends Fragment {
         fab3.setOnClickListener(new View.OnClickListener(){
             @Override
             public void onClick(View view){
-                Toast.makeText(fragContext,"Gallery fab clicked",Toast.LENGTH_SHORT).show();
+                // Toast.makeText(fragContext,"Gallery fab clicked",Toast.LENGTH_SHORT).show();
                 ((MainActivity)getActivity()).getPhoto();
                 isOpen = true;
                 animateFab();

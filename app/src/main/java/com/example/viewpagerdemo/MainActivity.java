@@ -55,6 +55,11 @@ public class MainActivity extends AppCompatActivity
                     GalleryFragment.OnFragmentInteractionListener,
                  CardFragment.OnFragmentInteractionListener{
 
+    // FOR PERMISSION
+
+    private static final int CONTACT_PERMISSION_REQCODE = 123;
+    private static final int STORAGE_PERMISSION_REQCODE = 456;
+
     // FOR CAMERA
 
     // Activity request codes
@@ -160,24 +165,6 @@ public class MainActivity extends AppCompatActivity
         mNavigation = (BottomNavigationView) findViewById(R.id.navigation);
         mNavigation.setOnNavigationItemSelectedListener(mOnNavigationItemSelectedListener);
 
-        if (Permissioncheck()) {
-            loadContacts();
-        }
-
-        if (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, 1);
-        } else {
-            Log.i("Error", "Permission does not granted!");
-        }
-
-        //checking availability of the camera
-        if (!CameraUtils.isDeviceSupportCamera(getApplicationContext())) {
-            Toast.makeText(getApplicationContext(), "Sorry! Your device doesn't support camera", Toast.LENGTH_LONG).show();
-            finish();
-        }
-
-
-
         // sharedPreferences = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
         sharedPreferences = getApplicationContext().getSharedPreferences("gallery_images", MODE_PRIVATE);
 
@@ -188,7 +175,11 @@ public class MainActivity extends AppCompatActivity
         // strImgSet = tmpSet;
         strImgSet = (HashSet<String>)sharedPreferences.getStringSet("images", null);
 
-
+        //checking availability of the camera
+        if (!CameraUtils.isDeviceSupportCamera(getApplicationContext())) {
+            Toast.makeText(getApplicationContext(), "Sorry! Your device doesn't support camera", Toast.LENGTH_LONG).show();
+            finish();
+        }
 
         if (strImgSet == null) {
             strImgSet = new HashSet<String>();
@@ -205,6 +196,7 @@ public class MainActivity extends AppCompatActivity
                 }
             }
         }
+
     }
 
     public void getPhoto() {
@@ -306,13 +298,6 @@ public class MainActivity extends AppCompatActivity
                 Bitmap bitmap = MediaStore.Images.Media.getBitmap(this.getContentResolver(), selectedImage);
                 addNewBitmap(bitmap);
 
-//                ImageView imageView = findViewById(R.id.myImage);
-//                imageView.setImageBitmap(bitmap);
-
-//                ByteArrayOutputStream stream = new ByteArrayOutputStream();
-//                bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream);
-//                byte[] byteArray = stream.toByteArray();
-
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -376,7 +361,7 @@ public class MainActivity extends AppCompatActivity
                 }).show();
     }
 
-        @Override
+    @Override
     public void onFragmentInteraction(Uri uri) {
     }
 
@@ -432,22 +417,11 @@ public class MainActivity extends AppCompatActivity
         return super.checkSelfPermission(permission);
     }
 
-    public boolean Permissioncheck(){
-        if(checkSelfPermission(Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED){
-            return true;
-        }
-        else{
-            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.READ_CONTACTS},1);
-            if(checkSelfPermission(Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED){
-                return true;
-            }
-            else{
-                return false;
-            }
-        }
-    }
 
-    private void loadContacts() {
+    public void loadContacts() {
+        dataList.clear();
+        items.clear();
+
         ContentResolver cr = getContentResolver();
         Cursor cur = cr.query(ContactsContract.Contacts.CONTENT_URI, null, null, null, null);
         //check there exists contact
@@ -477,10 +451,51 @@ public class MainActivity extends AppCompatActivity
                         String listItem = name + ": " + phoneNo;
 
                         items.add(listItem);
-                        // ContactFragment.adapter.notifyDataSetChanged();
                     }
                     pCur.close();
                 }
+            }
+        }
+
+        ContactFragment.adapter.notifyDataSetChanged();
+        ContactFragment.listview.invalidateViews();
+        ContactFragment.listview.setAdapter(ContactFragment.adapter);
+
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode,
+                                           String permissions[], int[] grantResults) {
+        switch (requestCode) {
+            case CONTACT_PERMISSION_REQCODE: {
+                // If request is cancelled, the result arrays are empty.
+                if (grantResults.length > 0
+                        && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+
+                    Log.i("***PERMISSION","Got ContactPermission");
+                    loadContacts();
+                } else {
+                    // permission denied, boo! Disable the
+                    // functionality that depends on this permission.
+                    Log.i("***PERMISSION","Failed to get ContactPermission");
+                }
+                return;
+            }
+
+            case STORAGE_PERMISSION_REQCODE: {
+                // If request is cancelled, the result arrays are empty.
+                if (grantResults.length > 0
+                        && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    // permission was granted, yay! Do the
+                    // contacts-related task you need to do.
+                    Log.i("***PERMISSION","Got StoragePermission");
+                } else {
+
+                    // permission denied, boo! Disable the
+                    // functionality that depends on this permission.
+                    Log.i("***PERMISSION","Failed to get StoragePermission");
+                }
+                return;
             }
         }
     }
